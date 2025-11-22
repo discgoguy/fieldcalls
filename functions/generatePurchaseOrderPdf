@@ -1,0 +1,190 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { jsPDF } from 'npm:jspdf@2.5.1';
+
+// The logo is embedded directly as a Base64 string to ensure reliability and prevent deployment timeouts.
+const COMPANY_LOGO_BASE64 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAoHBwgHBgoICAgLFQgLDhgVDg0NDh0VFhUXFhsZGRYWFhYZHSsiJissHRYZLDUxJCUfRD0zNzNLOiszQ0s0LjwBCgoKDg0OGxAQGy8mHyUtNTQvMi81Ly8vMi0tLS0zLy81LS8yLy8yLy8yLy8yLy8yLy8yLy8yLy8yLy8yLy8yLy//AABEIAKAAyAMBIgACEQEDEQH/xAAcAAEAAQUBAQAAAAAAAAAAAAAABgECBAUHAwj/xAA+EAABAwIDBgQDBgQFAgcAAAABAAIDBBEFEiEGMUETIlFhcYGRoQcyQlKxwdEUFWJy4fDxI2OCkiU0Q1MVFv/EABoBAQACAwEAAAAAAAAAAAAAAAACAwEEBQb/xAAoEQEAAgICAgIBAwUAAAAAAAAAAQIDEQQhEjFBUQUTImFxFIGRoSL/2gAMAwEAAhEDEQA/APcUREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQf/Z';
+
+const drawTable = (doc, items, startY) => {
+    let y = startY;
+    const pageHeight = doc.internal.pageSize.height;
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 14;
+    const tableWidth = pageWidth - (margin * 2);
+    const headStyles = { fillColor: [41, 128, 185], textColor: 255 };
+    const tableHeaders = ['Part Description', 'Qty', 'Unit Cost', 'Total Cost'];
+    const colWidths = [tableWidth * 0.55, tableWidth * 0.15, tableWidth * 0.15, tableWidth * 0.15];
+    
+    const drawHeader = () => {
+        doc.setFillColor(headStyles.fillColor[0], headStyles.fillColor[1], headStyles.fillColor[2]);
+        doc.rect(margin, y, tableWidth, 9, 'F');
+        doc.setTextColor(headStyles.textColor);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        let x = margin + 2;
+        doc.text(tableHeaders[0], x, y + 6);
+        x += colWidths[0];
+        doc.text(tableHeaders[1], x - 2, y + 6, { align: 'right' });
+        x += colWidths[1];
+        doc.text(tableHeaders[2], x - 2, y + 6, { align: 'right' });
+        x += colWidths[2];
+        doc.text(tableHeaders[3], x - 2, y + 6, { align: 'right' });
+        y += 9;
+    };
+
+    drawHeader();
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+
+    items.forEach((item, index) => {
+        const descriptionLines = doc.splitTextToSize(item.description || '', colWidths[0] - 4);
+        const rowHeight = Math.max(8, descriptionLines.length * 4) + 2;
+
+        if (y + rowHeight > pageHeight - 30) {
+            doc.addPage();
+            y = 20;
+            drawHeader();
+        }
+
+        if (index % 2 !== 0) { doc.setFillColor(245, 245, 245); doc.rect(margin, y, tableWidth, rowHeight, 'F'); }
+
+        let x = margin + 2;
+        doc.text(descriptionLines, x, y + 5);
+        x += colWidths[0];
+        doc.text(String(item.quantity_ordered || 0), x - 2, y + rowHeight / 2, { align: 'right', baseline: 'middle' });
+        x += colWidths[1];
+        doc.text(`$${(item.unit_cost || 0).toFixed(2)}`, x - 2, y + rowHeight / 2, { align: 'right', baseline: 'middle' });
+        x += colWidths[2];
+        doc.text(`$${(item.total_cost || 0).toFixed(2)}`, x - 2, y + rowHeight / 2, { align: 'right', baseline: 'middle' });
+        y += rowHeight;
+    });
+    
+    return y;
+};
+
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const { purchaseOrderId } = await req.json();
+        if (!purchaseOrderId) return Response.json({ error: 'Purchase Order ID is required' }, { status: 400 });
+
+        const purchaseOrder = await base44.asServiceRole.entities.PurchaseOrder.get(purchaseOrderId);
+        if (!purchaseOrder) return Response.json({ error: 'Purchase Order not found' }, { status: 404 });
+
+        const [items, supplier] = await Promise.all([
+            base44.asServiceRole.entities.PurchaseOrderItem.filter({ purchase_order_id: purchaseOrderId }),
+            base44.asServiceRole.entities.Supplier.get(purchaseOrder.supplier_id)
+        ]);
+
+        if (!supplier) return Response.json({ error: 'Supplier not found for this PO' }, { status: 404 });
+
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.width;
+        
+        try {
+            doc.addImage(COMPANY_LOGO_BASE64, 'JPEG', 14, 15, 40, 16);
+        } catch(e) {
+            console.error("PDF Logo AddImage Error:", e.message);
+        }
+
+        doc.setFontSize(22); doc.setFont('helvetica', 'bold');
+        doc.text('PURCHASE ORDER', pageWidth - 14, 25, { align: 'right' });
+        doc.setFontSize(12); doc.setFont('helvetica', 'normal');
+        doc.text(purchaseOrder.po_number, pageWidth - 14, 32, { align: 'right' });
+        
+        let y = 50;
+        doc.setFontSize(10);
+        doc.text('VENDOR', 14, y); doc.text('SHIP TO', pageWidth / 2, y);
+        doc.setLineWidth(0.2); doc.line(14, y + 2, pageWidth - 14, y + 2);
+        y += 8;
+
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+        doc.text(supplier.name, 14, y); doc.text('Area 52 Ltd.', pageWidth / 2, y);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+        const supplierAddress = doc.splitTextToSize(supplier.address || '', (pageWidth / 2) - 20);
+        doc.text(supplierAddress, 14, y + 5);
+        doc.text('163 Zack Road', pageWidth / 2, y + 5);
+        doc.text('Lutes Mountain, NB E1G 2V1', pageWidth / 2, y + 10);
+        doc.text('Canada', pageWidth / 2, y + 15);
+        y = Math.max(y + 20, y + 5 + supplierAddress.length * 4) + 10;
+        
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Payment Terms:', 14, y);
+        doc.text('Order Date:', 14, y + 5);
+        doc.setFont(undefined, 'normal');
+        doc.text(purchaseOrder.payment_type || 'N/A', 45, y);
+        doc.text(new Date(purchaseOrder.order_date).toLocaleDateString(), 45, y + 5);
+        if (purchaseOrder.shipping_method) {
+            doc.setFont(undefined, 'bold');
+            doc.text('Shipping Method:', 100, y);
+            doc.setFont(undefined, 'normal');
+            doc.text(purchaseOrder.shipping_method, 135, y);
+        }
+        y += 15;
+
+        y = drawTable(doc, items, y);
+
+        if (y > doc.internal.pageSize.height - 60) {
+            doc.addPage();
+            y = 20;
+        } else {
+            y += 10;
+        }
+
+        const totalsX = pageWidth - 70;
+        const totalsXValue = pageWidth - 14;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Subtotal:', totalsX, y, { align: 'left' });
+        doc.text(`$${(purchaseOrder.subtotal || 0).toFixed(2)}`, totalsXValue, y, { align: 'right' });
+        y += 7;
+
+        doc.text('Tax:', totalsX, y, { align: 'left' });
+        doc.text(`$${(purchaseOrder.tax_amount || 0).toFixed(2)}`, totalsXValue, y, { align: 'right' });
+        y += 7;
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.line(totalsX - 2, y, totalsXValue, y);
+        y += 5;
+        doc.text('Total:', totalsX, y, { align: 'left' });
+        doc.text(`$${(purchaseOrder.total_amount || 0).toFixed(2)} ${purchaseOrder.currency || 'CAD'}`, totalsXValue, y, { align: 'right' });
+
+        if (purchaseOrder.approved_by_user_name) {
+            y += 20;
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Approved by:', 14, y);
+            doc.setFont('helvetica', 'italic');
+            doc.text(purchaseOrder.approved_by_user_name, 50, y);
+            doc.setLineWidth(0.3);
+            doc.line(48, y + 1, 110, y + 1);
+
+            doc.setFont('helvetica', 'normal');
+            doc.text(new Date(purchaseOrder.order_date).toLocaleDateString(), 120, y);
+            doc.setFontSize(8);
+            doc.text('(Signature)', 68, y + 5);
+            doc.text('(Date)', 125, y + 5);
+        }
+
+        const pdfBytes = doc.output('arraybuffer');
+
+        return new Response(pdfBytes, {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename=PO-${purchaseOrder.po_number}.pdf`
+            }
+        });
+
+    } catch (error) {
+        console.error('PDF Generation Error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

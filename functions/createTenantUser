@@ -1,0 +1,112 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+const SUPER_ADMIN_EMAIL = 'discgoguy@gmail.com';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        
+        // Verify the requesting user is the super admin
+        const user = await base44.auth.me();
+        
+        if (!user || user.email !== SUPER_ADMIN_EMAIL) {
+            return Response.json({ 
+                error: 'Access denied. Super admin privileges required.' 
+            }, { status: 403 });
+        }
+
+        const body = await req.json();
+        const { email, full_name, company_name, role, subscription_status } = body;
+
+        if (!email || !full_name || !company_name) {
+            return Response.json({ 
+                error: 'Email, full name, and company name are required' 
+            }, { status: 400 });
+        }
+
+        // Check if user already exists
+        try {
+            const existingUsers = await base44.asServiceRole.entities.User.filter({ email: email });
+            if (existingUsers && existingUsers.length > 0) {
+                return Response.json({ 
+                    error: `A user with email ${email} already exists` 
+                }, { status: 400 });
+            }
+        } catch (checkError) {
+            console.log('Error checking for existing user:', checkError);
+        }
+
+        // Create user with service role
+        const today = new Date();
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 30);
+
+        const userData = {
+            email,
+            full_name,
+            company_name,
+            role: role || 'admin', // Default to admin for full access
+            subscription_status: subscription_status || 'trial'
+        };
+
+        // Set trial dates for trial users OR if subscription_status is undefined
+        const effectiveStatus = subscription_status || 'trial';
+        if (effectiveStatus === 'trial') {
+            userData.trial_start_date = today.toISOString().split('T')[0];
+            userData.trial_end_date = trialEnd.toISOString().split('T')[0];
+        }
+
+        console.log('Creating user with data:', userData);
+
+        let createdUser;
+        try {
+            createdUser = await base44.asServiceRole.entities.User.create(userData);
+            console.log('User created successfully:', createdUser.id);
+        } catch (createError) {
+            console.error('Error creating user:', createError);
+            
+            // Provide more specific error message
+            const errorMessage = createError.message || 'Unknown error during user creation';
+            return Response.json({ 
+                error: `Failed to create user: ${errorMessage}. Note: Users may need to be invited through the Base44 dashboard instead of created directly.`,
+                details: errorMessage
+            }, { status: 500 });
+        }
+        
+        // Set tenant_id to their own ID (making them tenant owner)
+        let updatedUser;
+        try {
+            updatedUser = await base44.asServiceRole.entities.User.update(createdUser.id, {
+                tenant_id: createdUser.id
+            });
+            console.log('User tenant_id set successfully');
+        } catch (updateError) {
+            console.error('Error setting tenant_id:', updateError);
+            
+            // User was created but tenant_id update failed
+            // Try to clean up by deleting the user
+            try {
+                await base44.asServiceRole.entities.User.delete(createdUser.id);
+            } catch (deleteError) {
+                console.error('Error cleaning up user after failed tenant_id update:', deleteError);
+            }
+            
+            return Response.json({ 
+                error: `User was created but failed to set tenant_id: ${updateError.message}` 
+            }, { status: 500 });
+        }
+
+        return Response.json({ 
+            success: true,
+            user: updatedUser,
+            message: `User ${email} created successfully as tenant owner with ${effectiveStatus === 'trial' ? '30-day trial' : 'active subscription'}`
+        });
+
+    } catch (error) {
+        console.error('Unexpected error in createTenantUser:', error);
+        return Response.json({ 
+            error: error.message || 'An unexpected error occurred',
+            details: String(error)
+        }, { status: 500 });
+    }
+});

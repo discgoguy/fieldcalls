@@ -1,0 +1,102 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import Stripe from 'npm:stripe@14.11.0';
+
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY"));
+const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+
+Deno.serve(async (req) => {
+    const body = await req.text();
+    const signature = req.headers.get('stripe-signature');
+
+    if (!signature) {
+        return Response.json({ error: 'No signature provided' }, { status: 400 });
+    }
+
+    let event;
+
+    try {
+        // Verify webhook signature
+        event = await stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            webhookSecret
+        );
+    } catch (err) {
+        console.error('Webhook signature verification failed:', err.message);
+        return Response.json({ error: 'Invalid signature' }, { status: 400 });
+    }
+
+    // Initialize base44 with service role for admin operations
+    const base44 = createClientFromRequest(req);
+
+    try {
+        switch (event.type) {
+            case 'checkout.session.completed': {
+                const session = event.data.object;
+                const userId = session.metadata.user_id;
+
+                if (userId && session.subscription) {
+                    // Update user with subscription info
+                    await base44.asServiceRole.entities.User.update(userId, {
+                        subscription_status: 'active',
+                        stripe_subscription_id: session.subscription,
+                        stripe_customer_id: session.customer
+                    });
+                    
+                    console.log(`Subscription activated for user ${userId}`);
+                }
+                break;
+            }
+
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object;
+                const userId = subscription.metadata.user_id;
+
+                if (userId) {
+                    let status = 'active';
+                    
+                    // Map Stripe subscription status to our status
+                    if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+                        status = 'canceled';
+                    } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+                        status = 'expired';
+                    }
+
+                    await base44.asServiceRole.entities.User.update(userId, {
+                        subscription_status: status
+                    });
+                    
+                    console.log(`Subscription updated for user ${userId}: ${status}`);
+                }
+                break;
+            }
+
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object;
+                const userId = subscription.metadata.user_id;
+
+                if (userId) {
+                    await base44.asServiceRole.entities.User.update(userId, {
+                        subscription_status: 'canceled',
+                        stripe_subscription_id: null
+                    });
+                    
+                    console.log(`Subscription canceled for user ${userId}`);
+                }
+                break;
+            }
+
+            default:
+                console.log(`Unhandled event type: ${event.type}`);
+        }
+
+        return Response.json({ received: true });
+
+    } catch (error) {
+        console.error('Webhook handler error:', error);
+        return Response.json({ 
+            error: 'Webhook handler failed', 
+            details: error.message 
+        }, { status: 500 });
+    }
+});

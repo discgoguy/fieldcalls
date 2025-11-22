@@ -1,0 +1,93 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+Deno.serve(async (req) => {
+    console.log('=== INITIALIZE TRIAL FUNCTION CALLED ===');
+    
+    try {
+        const base44 = createClientFromRequest(req);
+        
+        console.log('Checking authentication...');
+        const user = await base44.auth.me();
+        console.log('User authenticated:', user?.email, 'ID:', user?.id);
+        
+        if (!user) {
+            console.error('No user found');
+            return Response.json({ 
+                error: 'Unauthorized - No user found' 
+            }, { status: 401 });
+        }
+
+        const body = await req.json();
+        console.log('Request body:', body);
+        const { company_name } = body;
+
+        if (!company_name || !company_name.trim()) {
+            console.error('No company name provided');
+            return Response.json({ 
+                error: 'Company name is required' 
+            }, { status: 400 });
+        }
+
+        console.log('Current user status:', {
+            subscription_status: user.subscription_status,
+            tenant_id: user.tenant_id,
+            company_name: user.company_name
+        });
+
+        if (user.subscription_status && user.subscription_status !== 'none' && user.tenant_id) {
+            console.log('User already has trial initialized');
+            return Response.json({ 
+                error: 'Trial already initialized',
+                user: user
+            }, { status: 400 });
+        }
+
+        const today = new Date();
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 30);
+
+        const updateData = {
+            company_name: company_name.trim(),
+            subscription_status: 'trial',
+            trial_start_date: today.toISOString().split('T')[0],
+            trial_end_date: trialEnd.toISOString().split('T')[0],
+            role: 'admin',
+            tenant_id: user.id
+        };
+
+        console.log('Attempting to update user with:', updateData);
+
+        await base44.asServiceRole.entities.User.update(user.id, updateData);
+        console.log('User update successful');
+
+        const updatedUser = await base44.asServiceRole.entities.User.get(user.id);
+        console.log('Updated user data:', {
+            subscription_status: updatedUser.subscription_status,
+            tenant_id: updatedUser.tenant_id,
+            company_name: updatedUser.company_name,
+            role: updatedUser.role
+        });
+
+        console.log('=== TRIAL INITIALIZATION COMPLETE ===');
+
+        return Response.json({ 
+            success: true,
+            message: 'Trial initialized successfully',
+            user: {
+                ...user,
+                ...updateData
+            }
+        });
+
+    } catch (error) {
+        console.error('=== INITIALIZE TRIAL ERROR ===');
+        console.error('Error:', error);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        
+        return Response.json({ 
+            error: error.message || 'Failed to initialize trial',
+            details: String(error)
+        }, { status: 500 });
+    }
+});

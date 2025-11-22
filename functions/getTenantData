@@ -1,0 +1,101 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+const SUPER_ADMIN_EMAIL = 'discgoguy@gmail.com';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        
+        // Verify the requesting user is the super admin
+        const user = await base44.auth.me();
+        
+        if (!user || user.email !== SUPER_ADMIN_EMAIL) {
+            return Response.json({ 
+                error: 'Access denied. Super admin privileges required.' 
+            }, { status: 403 });
+        }
+
+        // Use service role to get all users across all tenants
+        const allUsers = await base44.asServiceRole.entities.User.list();
+        
+        // Group users by tenant_id
+        const tenantMap = new Map();
+        
+        for (const user of allUsers) {
+            if (!user.tenant_id) continue;
+            
+            if (!tenantMap.has(user.tenant_id)) {
+                tenantMap.set(user.tenant_id, {
+                    tenant_id: user.tenant_id,
+                    owner: null,
+                    users: [],
+                    company_name: user.company_name || 'Unnamed Company',
+                    subscription_status: user.subscription_status || 'unknown',
+                    trial_end_date: user.trial_end_date,
+                    trial_start_date: user.trial_start_date,
+                    stripe_customer_id: user.stripe_customer_id,
+                    created_date: user.created_date,
+                    updated_date: user.updated_date
+                });
+            }
+            
+            const tenant = tenantMap.get(user.tenant_id);
+            tenant.users.push(user);
+            
+            // Set owner if this user's ID matches tenant_id
+            if (user.id === user.tenant_id) {
+                tenant.owner = user;
+            }
+        }
+
+        // Load entity counts for each tenant
+        const tenantsArray = Array.from(tenantMap.values());
+        const tenantsWithCounts = await Promise.all(
+            tenantsArray.map(async (tenant) => {
+                try {
+                    const [customers, parts, transactions] = await Promise.all([
+                        base44.asServiceRole.entities.Customer.filter({ tenant_id: tenant.tenant_id }),
+                        base44.asServiceRole.entities.Part.filter({ tenant_id: tenant.tenant_id }),
+                        base44.asServiceRole.entities.Transaction.filter({ tenant_id: tenant.tenant_id })
+                    ]);
+                    
+                    return {
+                        ...tenant,
+                        data_counts: {
+                            customers: customers?.length || 0,
+                            parts: parts?.length || 0,
+                            transactions: transactions?.length || 0,
+                            has_data: (customers?.length || 0) > 0 || (parts?.length || 0) > 0
+                        },
+                        last_activity: tenant.updated_date || tenant.created_date
+                    };
+                } catch (e) {
+                    console.error(`Error loading data for tenant ${tenant.tenant_id}:`, e);
+                    return {
+                        ...tenant,
+                        data_counts: { customers: 0, parts: 0, transactions: 0, has_data: false },
+                        last_activity: tenant.created_date
+                    };
+                }
+            })
+        );
+
+        // Sort by most recent activity
+        tenantsWithCounts.sort((a, b) => {
+            const dateA = a.last_activity ? new Date(a.last_activity) : new Date(0);
+            const dateB = b.last_activity ? new Date(b.last_activity) : new Date(0);
+            return dateB - dateA;
+        });
+
+        return Response.json({ 
+            tenants: tenantsWithCounts,
+            success: true 
+        });
+
+    } catch (error) {
+        console.error('Error in getTenantData:', error);
+        return Response.json({ 
+            error: error.message || 'Failed to fetch tenant data' 
+        }, { status: 500 });
+    }
+});
