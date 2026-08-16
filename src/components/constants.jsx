@@ -1,2 +1,2 @@
 
-export const COMPANY_LOGO_URL = '/logo.svg';
+export const COMPANY_LOGO_URL = '/logo-wordmark.png';
