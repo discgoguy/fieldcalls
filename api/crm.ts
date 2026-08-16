@@ -17,6 +17,10 @@ const HISTORY_TURNS = 6;
 const ANALYTICAL_RE =
   /\b(analy|insight|why|compar|trend|risk|concentrat|funnel|leak|focus|recommend|should|improve|forecast|roi|health|stall|aging|drop[-\s]?off|best|worst|opportunit|priorit|underperform|where|how come)/i;
 
+// `as const` locks each `type: 'object'`/`type: 'string'` down to its literal
+// type instead of widening to `string` — required for structural compatibility
+// with the Anthropic SDK's `ToolUnion[]` (input_schema.type must be the literal
+// "object", not `string`).
 const TOOLS = [
   {
     name: 'query_deals',
@@ -41,23 +45,29 @@ const TOOLS = [
       'Per-source funnel and ROI rollup: leads, MQLs, SQLs, opportunities, projected value, quoted value, bookings, marketing cost, cost-per-lead and ROI (bookings − cost). Use to compare lead sources or assess ROI.',
     input_schema: { type: 'object', properties: {} },
   },
-];
+] as const;
 
-const num = (v) => Number(v) || 0;
-const daysSince = (iso, now) => (iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86400000)) : null);
+// This function talks to already-fetched Supabase rows and Anthropic tool-call
+// input — both loosely shaped at this boundary (no generated types for ad-hoc
+// aggregation queries), so `any`/`Record<string, any>` here is deliberate, same
+// pragma as the plain-JS `_lib.js` this file calls into. Server-internal only;
+// nothing here crosses into typed entity/RLS territory.
+const num = (v: any): number => Number(v) || 0;
+const daysSince = (iso: any, now: number): number | null =>
+  (iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86400000)) : null);
 
-function buildTools(data, now) {
+function buildTools(data: any, now: number) {
   const { deals, stages, companies, leads, sources, quotes, history } = data;
-  const stageName = Object.fromEntries(stages.map((s) => [s.id, s.name]));
-  const companyName = Object.fromEntries(companies.map((c) => [c.id, c.name]));
-  const sourceName = Object.fromEntries(sources.map((s) => [s.id, s.name]));
-  const leadById = Object.fromEntries(leads.map((l) => [l.id, l]));
-  const lastChange = {};
-  history.forEach((h) => { if (h.created_date && (!lastChange[h.deal_id] || h.created_date > lastChange[h.deal_id])) lastChange[h.deal_id] = h.created_date; });
+  const stageName: Record<string, any> = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
+  const companyName: Record<string, any> = Object.fromEntries(companies.map((c: any) => [c.id, c.name]));
+  const sourceName: Record<string, any> = Object.fromEntries(sources.map((s: any) => [s.id, s.name]));
+  const leadById: Record<string, any> = Object.fromEntries(leads.map((l: any) => [l.id, l]));
+  const lastChange: Record<string, any> = {};
+  history.forEach((h: any) => { if (h.created_date && (!lastChange[h.deal_id] || h.created_date > lastChange[h.deal_id])) lastChange[h.deal_id] = h.created_date; });
 
   // Same attribution rule as deriveCrmOverview: deal -> originating lead -> source
   // (a deal with no originating lead is shown per-row but not source-attributed).
-  const dealSource = (d) => {
+  const dealSource = (d: any): string | null => {
     const lead = d.lead_id ? leadById[d.lead_id] : null;
     if (!lead) return null;
     return lead.source_id ? sourceName[lead.source_id] || 'Unknown' : 'Unassigned';
@@ -67,8 +77,8 @@ function buildTools(data, now) {
   // here would be a second copy of the same math that could silently drift.
   const derived = deriveCrmOverview({ deals, stages, leads, stageHistory: history, sources, quotes });
 
-  function query_deals(input = {}) {
-    let rows = deals.map((d) => ({
+  function query_deals(input: any = {}) {
+    let rows = deals.map((d: any) => ({
       name: d.name,
       company: companyName[d.company_id] || null,
       status: d.status,
@@ -78,12 +88,12 @@ function buildTools(data, now) {
       days_since_stage_change: daysSince(lastChange[d.id] || d.created_date, now),
       prequote: Math.round(num(d.prequote_estimate_value)),
     }));
-    if (input.status) rows = rows.filter((r) => r.status === input.status);
-    if (input.stage_name) rows = rows.filter((r) => (r.stage || '').toLowerCase() === String(input.stage_name).toLowerCase());
-    if (input.source_name) rows = rows.filter((r) => (r.source || '').toLowerCase() === String(input.source_name).toLowerCase());
-    if (typeof input.min_amount === 'number') rows = rows.filter((r) => r.amount >= input.min_amount);
-    if (typeof input.stalled_days === 'number') rows = rows.filter((r) => r.status === 'open' && (r.days_since_stage_change ?? 0) >= input.stalled_days);
-    rows.sort((a, b) => (input.order_by === 'days_in_stage' ? (b.days_since_stage_change ?? 0) - (a.days_since_stage_change ?? 0) : b.amount - a.amount));
+    if (input.status) rows = rows.filter((r: any) => r.status === input.status);
+    if (input.stage_name) rows = rows.filter((r: any) => (r.stage || '').toLowerCase() === String(input.stage_name).toLowerCase());
+    if (input.source_name) rows = rows.filter((r: any) => (r.source || '').toLowerCase() === String(input.source_name).toLowerCase());
+    if (typeof input.min_amount === 'number') rows = rows.filter((r: any) => r.amount >= input.min_amount);
+    if (typeof input.stalled_days === 'number') rows = rows.filter((r: any) => r.status === 'open' && (r.days_since_stage_change ?? 0) >= input.stalled_days);
+    rows.sort((a: any, b: any) => (input.order_by === 'days_in_stage' ? (b.days_since_stage_change ?? 0) - (a.days_since_stage_change ?? 0) : b.amount - a.amount));
     const limit = Math.min(input.limit || 8, 25);
     return { total_matched: rows.length, returned: Math.min(rows.length, limit), deals: rows.slice(0, limit) };
   }
@@ -93,8 +103,8 @@ function buildTools(data, now) {
   // module). Cost-only sources (spend but no leads/deals yet) are appended so
   // negative ROI is still visible.
   function source_performance() {
-    const costBySource = Object.fromEntries(sources.map((s) => [s.name, num(s.total_cost)]));
-    const rows = derived.sourceDetails.map((r) => {
+    const costBySource: Record<string, any> = Object.fromEntries(sources.map((s: any) => [s.name, num(s.total_cost)]));
+    const rows = derived.sourceDetails.map((r: any) => {
       const cost = Math.round(costBySource[r.source] || 0);
       return {
         source: r.source, leads: r.leads, mql: r.mql, sql: r.sql, opps: r.opps,
@@ -102,8 +112,8 @@ function buildTools(data, now) {
         cost, cost_per_lead: r.leads ? Math.round(cost / r.leads) : null, roi: Math.round(r.bookings - cost),
       };
     });
-    const seen = new Set(rows.map((r) => r.source));
-    sources.filter((s) => !seen.has(s.name) && num(s.total_cost) > 0).forEach((s) => {
+    const seen = new Set(rows.map((r: any) => r.source));
+    sources.filter((s: any) => !seen.has(s.name) && num(s.total_cost) > 0).forEach((s: any) => {
       const cost = Math.round(num(s.total_cost));
       rows.push({ source: s.name, leads: 0, mql: 0, sql: 0, opps: 0, projected: 0, quoted: 0, bookings: 0, cost, cost_per_lead: null, roi: -cost });
     });
@@ -128,7 +138,7 @@ function buildTools(data, now) {
   return { query_deals, source_performance, headline };
 }
 
-async function handleChat(user, body, res) {
+async function handleChat(user: any, body: any, res: any) {
   const { question, history: chatHistory } = body;
   if (!question || !String(question).trim()) return errorResponse(res, 400, 'A question is required');
 
@@ -143,8 +153,8 @@ async function handleChat(user, body, res) {
   // query into [] via `r.data || []`, making the assistant confidently report a $0
   // pipeline. Throwing lets the dispatch try/catch return a real 500.
   const PAGE = 1000;
-  const pick = async (t, cols = '*') => {
-    const rows = [];
+  const pick = async (t: string, cols: string = '*'): Promise<any[]> => {
+    const rows: any[] = [];
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await db.from(t).select(cols).range(from, from + PAGE - 1);
       if (error) throw error;
@@ -168,10 +178,10 @@ async function handleChat(user, body, res) {
 
   const isAnalysis = ANALYTICAL_RE.test(String(question));
   const tier = isAnalysis
-    ? { model: 'claude-sonnet-5', max_tokens: 4096, thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } }
+    ? { model: 'claude-sonnet-5', max_tokens: 4096, thinking: { type: 'adaptive' as const }, output_config: { effort: 'medium' as const } }
     : { model: 'claude-haiku-4-5', max_tokens: 1024 };
 
-  const system = `You are a sharp sales analyst embedded in the A52 CRM Overview. Surface valuable, non-obvious findings (concentration risk, funnel drop-off, stalled/aging deals, source ROI) - don't just restate numbers.
+  const system = `You are a sharp sales analyst embedded in the FieldCalls CRM Overview. Surface valuable, non-obvious findings (concentration risk, funnel drop-off, stalled/aging deals, source ROI) - don't just restate numbers.
 Rules:
 - Every figure you state MUST come from the headline below or a tool result - never invent numbers.
 - Answer simple headline questions directly; call tools only when you need detail beyond the headline.
@@ -181,7 +191,7 @@ Rules:
 Headline metrics (current, authoritative):
 ${JSON.stringify(tools.headline)}`;
 
-  const messages = [];
+  const messages: any[] = [];
   if (Array.isArray(chatHistory)) {
     for (const m of chatHistory.slice(-HISTORY_TURNS)) {
       if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string') {
@@ -191,7 +201,7 @@ ${JSON.stringify(tools.headline)}`;
   }
   messages.push({ role: 'user', content: String(question) });
 
-  let response = null;
+  let response: any = null;
   let rounds = 0;
   const usage = { input: 0, output: 0, cache_read: 0 };
   for (; rounds < MAX_TOOL_ROUNDS; rounds++) {
@@ -205,15 +215,15 @@ ${JSON.stringify(tools.headline)}`;
     if (response.stop_reason !== 'tool_use') break;
 
     messages.push({ role: 'assistant', content: response.content });
-    const toolResults = [];
+    const toolResults: any[] = [];
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue;
       let out;
       try {
-        out = block.name === 'query_deals' ? tools.query_deals(block.input || {})
+        out = block.name === 'query_deals' ? tools.query_deals((block.input as any) || {})
           : block.name === 'source_performance' ? tools.source_performance()
             : { error: `Unknown tool: ${block.name}` };
-      } catch (e) {
+      } catch (e: any) {
         out = { error: e?.message || 'tool failed' };
       }
       toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(out) });
@@ -224,8 +234,8 @@ ${JSON.stringify(tools.headline)}`;
   console.log(`crm.chat tier=${isAnalysis ? 'analysis' : 'factual'} model=${tier.model} rounds=${rounds + 1} in=${usage.input} out=${usage.output} cache_read=${usage.cache_read}`);
 
   const answer = (response?.content || [])
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
+    .filter((b: any) => b.type === 'text')
+    .map((b: any) => b.text)
     .join('\n')
     .trim();
 
@@ -235,7 +245,7 @@ ${JSON.stringify(tools.headline)}`;
 // ============================ sendEmail ============================
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-async function handleSendEmail(user, body, res) {
+async function handleSendEmail(user: any, body: any, res: any) {
   const { to, subject, body: emailBody } = body;
   if (!to || !EMAIL_RE.test(String(to).trim())) {
     return errorResponse(res, 400, 'A valid recipient email is required');
@@ -266,7 +276,7 @@ async function handleSendEmail(user, body, res) {
 }
 
 // ============================ dispatch ============================
-export default async function handler(req, res) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return errorResponse(res, 405, 'Method not allowed');
 
   try {
@@ -279,7 +289,7 @@ export default async function handler(req, res) {
     if (action === 'chat') return await handleChat(user, req.body, res);
     if (action === 'sendEmail') return await handleSendEmail(user, req.body, res);
     return errorResponse(res, 400, `Unknown action: ${action || '(none)'}`);
-  } catch (err) {
+  } catch (err: any) {
     if (err && typeof err.status === 'number' && typeof err.error === 'string') {
       return errorResponse(res, err.status, err.error);
     }
