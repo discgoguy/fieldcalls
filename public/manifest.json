@@ -1,0 +1,14 @@
+{
+  "name": "FieldCalls",
+  "short_name": "FieldCalls",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#1B244F",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}
