@@ -205,7 +205,11 @@ ${JSON.stringify(tools.headline)}`;
   let rounds = 0;
   const usage = { input: 0, output: 0, cache_read: 0 };
   for (; rounds < MAX_TOOL_ROUNDS; rounds++) {
-    const stream = client.messages.stream({ ...tier, system, tools: TOOLS, messages });
+    // Spread into a fresh mutable array: `TOOLS` is `as const` (a readonly
+    // tuple, needed so input_schema.type stays the literal "object"), but the
+    // SDK's `tools` param is typed as a mutable `ToolUnion[]` — a readonly
+    // tuple isn't assignable to that even though its elements match.
+    const stream = client.messages.stream({ ...tier, system, tools: [...TOOLS], messages });
     response = await stream.finalMessage();
     if (response.usage) {
       usage.input += response.usage.input_tokens || 0;
