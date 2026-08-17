@@ -141,7 +141,7 @@ export default function InventoryCount() {
     setCommitting(true);
     setError('');
     try {
-      const result = await invokeApi('commitInventoryCount', { countId: activeSession.id });
+      const result = await invokeApi('inventory', { action: 'commitCount', countId: activeSession.id });
       showSuccess(`Committed — ${result.partsUpdated} parts updated, ${result.auditRecords} adjustments logged.`);
       setShowCommitConfirm(false);
       setActiveSession(null);

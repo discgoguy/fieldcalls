@@ -7,6 +7,6 @@
     { "source": "/((?!.*\\..*).*)", "destination": "/index.html" }
   ],
   "crons": [
-    { "path": "/api/sendTicketReminders", "schedule": "0 12 * * *" }
+    { "path": "/api/ticketNotifications", "schedule": "0 12 * * *" }
   ]
 }

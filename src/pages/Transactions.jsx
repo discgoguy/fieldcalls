@@ -267,7 +267,8 @@ export default function TransactionsPage() {
                     const qtyBefore = freshPart.quantity_in_inventory || 0;
                     const qtyAfter = qtyBefore + Number(selectedTransaction.quantity);
                     await Part.update(freshPart.id, { quantity_in_inventory: qtyAfter });
-                    await invokeApi('inventoryAudit', {
+                    await invokeApi('inventory', {
+                        action: 'audit',
                         part_id: freshPart.id,
                         change_type: 'return',
                         quantity_before: qtyBefore,

@@ -145,7 +145,8 @@ export default function InternalPartMovementsPage() {
             await Part.update(part.id, {
                 quantity_in_inventory: stockBefore - qty
             });
-            invokeApi('inventoryAudit', {
+            invokeApi('inventory', {
+                action: 'audit',
                 part_id: part.id,
                 change_type: 'deduction',
                 quantity_before: stockBefore,
@@ -209,7 +210,8 @@ export default function InternalPartMovementsPage() {
             await Part.update(part.id, {
                 quantity_in_inventory: stockBeforeReturn + qty
             });
-            invokeApi('inventoryAudit', {
+            invokeApi('inventory', {
+                action: 'audit',
                 part_id: part.id,
                 change_type: 'return',
                 quantity_before: stockBeforeReturn,

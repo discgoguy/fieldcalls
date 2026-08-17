@@ -121,7 +121,8 @@ export default function PurchaseOrderDetail({ purchaseOrder, supplier, parts, is
                         );
                         // Log to inventory audit
                         inventoryUpdates.push(
-                            invokeApi('inventoryAudit', {
+                            invokeApi('inventory', {
+                                action: 'audit',
                                 part_id: item.part_id,
                                 change_type: 'receipt',
                                 quantity_before: previousStock,

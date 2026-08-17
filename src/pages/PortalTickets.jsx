@@ -223,7 +223,8 @@ export default function PortalTickets() {
 
             // Send notification
             try {
-                await invokeApi('sendTicketNotification', {
+                await invokeApi('ticketNotifications', {
+                    action: 'newTicket',
                     ticketData: createdTicket,
                     customerName: user.full_name || user.email
                 });

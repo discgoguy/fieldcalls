@@ -621,7 +621,8 @@ export default function PartsPage() {
                 // Log manual inventory adjustment to the audit trail, if the stock count was hand-edited here
                 if (pendingQuantityChange) {
                     try {
-                        await invokeApi('inventoryAudit', {
+                        await invokeApi('inventory', {
+                            action: 'audit',
                             part_id: pendingQuantityChange.partId,
                             change_type: 'adjustment',
                             quantity_before: pendingQuantityChange.oldQty,
@@ -1089,7 +1090,8 @@ export default function PartsPage() {
             }
             
             // Use the deductInventory backend function to avoid stale-read race conditions
-            const response = await invokeApi('deductInventory', {
+            const response = await invokeApi('inventory', {
+                action: 'deduct',
                 parts: [{ part_id: buildingPart.id, quantity: qty }]
             });
 

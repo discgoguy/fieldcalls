@@ -147,7 +147,7 @@ export default function TicketsPage() {
                 // Notify the assignee, unless they assigned it to themselves.
                 if (String(ownerTechnicianId) !== String(currentUser?.technician_id || '')) {
                     try {
-                        await invokeApi('sendTicketAssignmentNotification', { ticketId: createdTicket.id });
+                        await invokeApi('ticketNotifications', { action: 'assignment', ticketId: createdTicket.id });
                     } catch (assignEmailError) {
                         console.warn('Failed to send assignment notification:', assignEmailError);
                     }
@@ -159,7 +159,8 @@ export default function TicketsPage() {
                 // Ensure customers data is loaded before attempting to find customerName
                 // If customers might not be loaded yet, consider refetching or handling gracefully
                 const customerName = customers.find(c => c.id === ticketData.customer_id)?.company_name || 'Unknown Customer';
-                await invokeApi('sendTicketNotification', {
+                await invokeApi('ticketNotifications', {
+                    action: 'newTicket',
                     ticketData: newTicketData,
                     customerName: customerName
                 });
@@ -209,7 +210,7 @@ export default function TicketsPage() {
                     // Notify the new assignee, unless they were assigned to themselves.
                     if (ticketData.technician_id && String(ticketData.technician_id) !== String(currentUser?.technician_id || '')) {
                         try {
-                            await invokeApi('sendTicketAssignmentNotification', { ticketId });
+                            await invokeApi('ticketNotifications', { action: 'assignment', ticketId });
                         } catch (assignEmailError) {
                             console.warn('Failed to send assignment notification:', assignEmailError);
                         }

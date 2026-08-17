@@ -385,7 +385,8 @@ export default function OnSiteService() {
 
   // Deduct inventory via backend function (atomic, uses fresh DB reads)
   const deductInventory = async (partsToDeduct, referenceType, referenceId, referenceNumber) => {
-    const response = await invokeApi('deductInventory', { 
+    const response = await invokeApi('inventory', {
+      action: 'deduct',
       parts: partsToDeduct,
       referenceType,
       referenceId,
@@ -416,7 +417,8 @@ export default function OnSiteService() {
   // Build enough of an assembly (from its components) to cover a shortfall, then
   // refresh local part data so the shortage check reflects the new stock level.
   const handleBuildAssemblyForShortage = async (partId, buildQuantity) => {
-    await invokeApi('deductInventory', {
+    await invokeApi('inventory', {
+      action: 'deduct',
       parts: [{ part_id: partId, quantity: buildQuantity }],
       referenceType: 'assembly_build',
       referenceId: `BUILD-${Date.now()}`,

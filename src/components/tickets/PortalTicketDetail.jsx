@@ -96,7 +96,7 @@ export default function PortalTicketDetail({ ticket, isOpen, onOpenChange, curre
             // Update ticket last_reply_role
             await Ticket.update(ticket.id, { last_reply_role: 'customer' });
 
-            await invokeApi('sendTicketNoteNotification', { noteId: note.id });
+            await invokeApi('ticketNotifications', { action: 'note', noteId: note.id });
             
             setNewNote("");
             await loadNotes();

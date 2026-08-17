@@ -141,7 +141,7 @@ export default function TicketDetailModal({ ticket, customers, technicians, part
 
             // 2. Send notification
             if (isCustomerVisible) {
-                await invokeApi('sendTicketNoteNotification', { noteId: note.id });
+                await invokeApi('ticketNotifications', { action: 'note', noteId: note.id });
             }
 
             // 3. Also update the legacy string for backward compatibility if needed (optional, but good for list view snippets)
